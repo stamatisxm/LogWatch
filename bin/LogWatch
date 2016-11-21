@@ -1,0 +1,161 @@
+#!/usr/bin/tclsh
+
+#
+#    Copyright (C) 2015-2016  Stamatis X. Mavrogeorgis
+#
+#    Author's Email: stamatis@zirconix.net
+#    Author's Website: http://www.istos.xyz
+#
+#    This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+# version 0.0.3 - Fixed Window Icon Format
+# version 0.0.2 - Added Control Window
+# version 0.0.1 - Initial Concept
+
+package require Tk
+#package require Tclx
+package require Signal
+package require autoscroll
+
+set timerInterval 1618
+set checkInterval [ lindex $argv 0 ]
+set runCounter {0}
+#set generalFont "Linux Biolinum O"
+#set generalFont "FreeSans"
+#set generalFont "Dialog"
+#set generalFont "DejaVu Sans Condensed"
+#set generalFont "Droid Sans"
+#set generalFont "DejaVu Sans"
+set generalFont "Liberation Sans"
+set generalFontSize 9
+#set generalFontSlant {italic}
+set generalFontSlant {roman}
+
+font create widgetFont -family $generalFont -size $generalFontSize -slant $generalFontSlant
+font configure widgetFont -family $generalFont -size $generalFontSize -slant $generalFontSlant
+#option add *font widgetFont
+
+proc every {ms rCommand} {
+  {*}$rCommand
+  after $ms [list after idle [info level 0]]
+}
+
+proc buttonExit {} {
+  exit
+}
+
+proc buttonClear {} {
+  .frmAppTxt.textData delete 1.0 end
+}
+
+proc checkDMESG {} {
+  global pauseLog
+  global checkInterval
+  global runCounter
+  if { $pauseLog != 1 } {
+    buttonClear
+    .frmAppTxt.textData insert end [ exec dmesg -T ]
+    .frmAppTxt.textData see end
+    #.frmAppTxt.textData insert end [ exec dmesg -T | tail -16 ]
+    #set fileData [ eval exec { dmesg } ]
+    #.frmAppTxt.textData insert end $fileData
+    incr runCounter
+    setTitle
+  }
+  set checkInterval [ expr { $checkInterval < 1618?  ($checkInterval + 1618) : $checkInterval } ]
+  after [ expr { $checkInterval } ] checkDMESG
+}
+
+proc setTitle {} {
+  global runCounter
+  global checkInterval
+  set systemTime [clock seconds]
+  .labTimeDisplay configure -text "Interval: $checkInterval - Loops: $runCounter - Last Run: [clock format $systemTime -format %H:%M:%S]"
+}
+
+set pauseLog 0
+
+toplevel .mainControl
+ttk::frame .mainControl.frmControl -relief groove
+checkbutton .mainControl.frmControl.chkbutPauseLog -text "Pause" -variable pauseLog -indicatoron false
+ttk::label .mainControl.frmControl.labRefreshDelay -text "Refresh Delay (ms): "
+ttk::spinbox .mainControl.frmControl.spbRefreshDelay -from 0 -to 10000000 -increment 1618 -justify right -textvariable checkInterval -width 8
+
+wm protocol .mainControl WM_DELETE_WINDOW { wm iconify .mainControl }
+wm title .mainControl "LogWatch Control"
+#wm minsize .mainControl 256 24
+#wm geometry .mainControl "256x24"
+wm resizable .mainControl 0 0
+#wm geometry . +1066+976
+
+set appIcon [ image create photo -file $env(HOME)/.local/share/icons/LogWatch.png ]
+wm iconphoto .mainControl -default $appIcon
+
+grid .mainControl.frmControl -row 0 -column 0 -sticky news
+grid .mainControl.frmControl.chkbutPauseLog -row 0 -column 0
+grid .mainControl.frmControl.labRefreshDelay -row 0 -column 1
+grid .mainControl.frmControl.spbRefreshDelay -row 0 -column 2
+
+ttk::frame .frmApp -relief groove
+ttk::frame .frmAppTxt -relief groove
+
+grid rowconfigure . 0 -weight 1
+grid columnconfigure . 0 -weight 1
+grid columnconfigure .frmApp 0 -weight 1
+grid rowconfigure .frmApp 0 -weight 1
+grid rowconfigure .frmApp 1 -weight 0
+
+text .frmAppTxt.textData -wrap word -xscrollcommand { .frmAppTxt.hScrollBar set } -yscrollcommand { .frmAppTxt.vScrollBar set }
+ttk::label .labTimeDisplay -text "Time: "
+
+bind .labTimeDisplay <Button-1> { wm iconify .mainControl; wm deiconify .mainControl }
+bind .mainControl.frmControl.labRefreshDelay <Button-1> { wm state . icon; wm state . normal }
+bind .frmAppTxt.textData <Alt-a> { .frmAppTxt.textData tag add sel 1.0 end }
+
+ttk::scrollbar .frmAppTxt.vScrollBar -orient vertical -command { .frmAppTxt.textData yview }
+ttk::scrollbar .frmAppTxt.hScrollBar -orient horizontal -command { .frmAppTxt.textData xview }
+
+grid .frmApp -row 0 -column 0 -sticky news
+grid .frmAppTxt -in .frmApp -row 0 -column 0 -sticky news
+grid .frmAppTxt.textData .frmAppTxt.vScrollBar -sticky news
+grid .frmAppTxt.hScrollBar  -sticky news
+grid .labTimeDisplay -in .frmApp -row 1 -column 0 -sticky news
+
+grid rowconfigure .frmAppTxt .frmAppTxt.textData -weight 1
+grid columnconfigure .frmAppTxt .frmAppTxt.textData -weight 1
+
+::autoscroll::autoscroll .frmAppTxt.vScrollBar
+::autoscroll::autoscroll .frmAppTxt.hScrollBar
+
+if { $checkInterval < 13924 } { set checkInterval 16180 }
+
+#every $timerInterval checkDMESG
+after $timerInterval checkDMESG
+
+wm protocol . WM_DELETE_WINDOW { buttonExit }
+wm title . "LogWatch [ exec grep {^# version} $argv0 | cut -f3 -d\  | sort -r | head -1 ]"
+#wm geometry . +1280+760
+wm minsize . 960 128
+wm geometry . "1280x240"
+
+wm iconphoto . -default $appIcon
+
+if { ! [ catch { package present Tclx } v ] } {
+  signal trap SIGTERM buttonExit;
+}
+if { ! [ catch { package present Signal } v ] } {
+  signal add SIGTERM buttonExit;
+}
+

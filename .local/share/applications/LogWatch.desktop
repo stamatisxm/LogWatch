@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=LogWatch
+Name[el]=LogWatch
+GenericName=LogWatch
+GenericName[el]=LogWatch
+Comment=System Message Watcher
+Comment[el]=Παρακολούθηση Μηνυμάτων Συστήματος
+Type=Application
+TryExec=LogWatch
+Exec=LogWatch
+Icon=LogWatch
+Categories=System;Utility;
